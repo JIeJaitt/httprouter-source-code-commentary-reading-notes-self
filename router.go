@@ -1,79 +1,77 @@
-// Copyright 2013 Julien Schmidt. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be found
-// in the LICENSE file.
-
-// Package httprouter is a trie based high performance HTTP request router.
+// Package httprouter是一个基于 trie树的高性能 HTTP 请求路由器。
+// 一个简单的例子：
 //
-// A trivial example is:
+//	package main
 //
-//  package main
+//	import (
+//	    "fmt"
+//	    "github.com/julienschmidt/httprouter"
+//	    "net/http"
+//	    "log"
+//	)
 //
-//  import (
-//      "fmt"
-//      "github.com/julienschmidt/httprouter"
-//      "net/http"
-//      "log"
-//  )
+//	func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+//	    fmt.Fprint(w, "Welcome!\n")
+//	}
 //
-//  func Index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-//      fmt.Fprint(w, "Welcome!\n")
-//  }
+//	func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+//	    fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
+//	}
 //
-//  func Hello(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-//      fmt.Fprintf(w, "hello, %s!\n", ps.ByName("name"))
-//  }
+//	func main() {
+//	    router := httprouter.New()
+//	    router.GET("/", Index)
+//	    router.GET("/hello/:name", Hello)
 //
-//  func main() {
-//      router := httprouter.New()
-//      router.GET("/", Index)
-//      router.GET("/hello/:name", Hello)
+//	    log.Fatal(http.ListenAndServe(":8080", router))
+//	}
 //
-//      log.Fatal(http.ListenAndServe(":8080", router))
-//  }
+// 路由器通过请求方法和路径来匹配传入的请求
+// 如果已经为该路径和请求方法注册了一个处理函数，路由器就将请求委托给该函数进行处理
 //
-// The router matches incoming requests by the request method and the path.
-// If a handle is registered for this path and method, the router delegates the
-// request to that function.
-// For the methods GET, POST, PUT, PATCH, DELETE and OPTIONS shortcut functions exist to
-// register handles, for all other methods router.Handle can be used.
+// 对于 GET、POST、PUT、PATCH、DELETE 和 OPTIONS 方法，存在快捷函数来注册处理函数
+// 对于所有其他方法，可以使用 router.Handle 函数来注册处理函数。
 //
-// The registered path, against which the router matches incoming requests, can
-// contain two types of parameters:
-//  Syntax    Type
-//  :name     named parameter
-//  *name     catch-all parameter
+// 注册的路径，用于路由器匹配传入的请求，可以包含两种类型的参数：
 //
-// Named parameters are dynamic path segments. They match anything until the
-// next '/' or the path end:
-//  Path: /blog/:category/:post
+//	语法    类型
+//	:name     命名参数
+//	*name     捕获所有参数
 //
-//  Requests:
-//   /blog/go/request-routers            match: category="go", post="request-routers"
-//   /blog/go/request-routers/           no match, but the router would redirect
-//   /blog/go/                           no match
-//   /blog/go/request-routers/comments   no match
+// 命名参数是动态路径段。它们匹配任何东西，直到下一个'/'或路径结束：
+//
+//	路径: /blog/:category/:post
+//
+//
+//	请求:
+//	 /blog/go/request-routers            match: category="go", post="request-routers"
+//	 /blog/go/request-routers/           no match, but the router would redirect
+//	 /blog/go/                           no match
+//	 /blog/go/request-routers/comments   no match
 //
 // Catch-all parameters match anything until the path end, including the
 // directory index (the '/' before the catch-all). Since they match anything
 // until the end, catch-all parameters must always be the final path element.
-//  Path: /files/*filepath
 //
-//  Requests:
-//   /files/                             match: filepath="/"
-//   /files/LICENSE                      match: filepath="/LICENSE"
-//   /files/templates/article.html       match: filepath="/templates/article.html"
-//   /files                              no match, but the router would redirect
+//	Path: /files/*filepath
+//
+//	Requests:
+//	 /files/                             match: filepath="/"
+//	 /files/LICENSE                      match: filepath="/LICENSE"
+//	 /files/templates/article.html       match: filepath="/templates/article.html"
+//	 /files                              no match, but the router would redirect
 //
 // The value of parameters is saved as a slice of the Param struct, consisting
 // each of a key and a value. The slice is passed to the Handle func as a third
 // parameter.
 // There are two ways to retrieve the value of a parameter:
-//  // by the name of the parameter
-//  user := ps.ByName("user") // defined by :user or *user
 //
-//  // by the index of the parameter. This way you can also get the name (key)
-//  thirdKey   := ps[2].Key   // the name of the 3rd parameter
-//  thirdValue := ps[2].Value // the value of the 3rd parameter
+//	// by the name of the parameter
+//	user := ps.ByName("user") // defined by :user or *user
+//
+//	// by the index of the parameter. This way you can also get the name (key)
+//	thirdKey   := ps[2].Key   // the name of the 3rd parameter
+//	thirdValue := ps[2].Value // the value of the 3rd parameter
 package httprouter
 
 import (
@@ -83,24 +81,59 @@ import (
 	"sync"
 )
 
-// Handle is a function that can be registered to a route to handle HTTP
-// requests. Like http.HandlerFunc, but has a third parameter for the values of
-// wildcards (path variables).
+// Handle 这段代码定义了一个 Handle 类型，它是一个函数类型，可以用来注册路由来处理 HTTP 请求。
+// 这个类型的函数与 http.HandlerFunc 类似，都接受一个 http.ResponseWriter 和一个 *http.Request 参数，用于处理 HTTP 请求和响应。
+// 不同的是，Handle 类型函数还有一个 Params 参数，用于保存路由匹配的通配符（路径变量）的值。
 type Handle func(http.ResponseWriter, *http.Request, Params)
 
-// Param is a single URL parameter, consisting of a key and a value.
+// Param 是一个结构体类型，它包含了两个字段：Key 和 Value
+// Key 表示 URL 参数的键，Value 表示 URL 参数的值
+// 在路由处理器中，可以使用 Params 类型来保存多个 Param，其中 Params 类型实际上是 Param 结构体的切片。
 type Param struct {
 	Key   string
 	Value string
 }
 
-// Params is a Param-slice, as returned by the router.
+// Params 这段代码定义了一个类型 Params, 它是一个包含多个 Param 的切片类型.
 // The slice is ordered, the first URL parameter is also the first slice value.
 // It is therefore safe to read values by the index.
+// 每个 Param 包含一个通配符名称和对应的值。因此，Handle 函数可以使用 Params 参数来访问路由匹配的通配符（路径变量）的值，从而进行更复杂的路由处理。
+//
+// Params 值是一个包含多个 Param 结构体的切片, 每个 Param 结构体包含一个通配符名称和对应的值.
+// 它的具体样子取决于具体的应用程序和路由规则.
+// 例如, 如果路由规则是 /blog/:category/:post, 那么 Params 的值可能是:
+//
+//	[]Param{
+//		{Key: "category", Value: "go"},
+//		{Key: "post", Value: "request-routers"},
+//	}
+//
+// 如果路由规则是 /files/*filepath, 那么 Params 的值可能是:
+//
+//	[]Param{
+//		{Key: "filepath", Value: "/home/user/"},
+//	}
+//
+// 如果路由规则是 /user/:name/*, 那么 Params 的值可能是:
+//
+//	[]Param{
+//		{Key: "name", Value: "gopher"},
+//		{Key: "wildcard", Value: "/a/b/c"},
+//	}
+//
+// 如果路由规则是 /user/:name/*filepath, 那么 Params 的值可能是:
+//
+//	[]Param{
+//		{Key: "name", Value: "gopher"},
+//		{Key: "filepath", Value: "/a/b/c"},
+//	}
 type Params []Param
 
-// ByName returns the value of the first Param which key matches the given name.
-// If no matching Param is found, an empty string is returned.
+// ByName 这是一个名为 ByName 的方法, 它是在 Params 类型上定义的.
+// 它接受一个字符串类型的参数 name，代表要查找的 Params 中的 Param 的键.
+// 方法首先迭代 Params 切片中的每个元素（即每个 Param）, 并检查它们的键是否与提供的 name 相匹配.
+// 如果找到匹配的 Param，则返回它的值, 否则，方法返回一个空字符串.
+// 这个方法可以用来从路由的 Params 中检索特定的值.
 func (ps Params) ByName(name string) string {
 	for _, p := range ps {
 		if p.Key == name {
@@ -366,7 +399,8 @@ func (r *Router) HandlerFunc(method, path string, handler http.HandlerFunc) {
 // of the Router's NotFound handler.
 // To use the operating system's file system implementation,
 // use http.Dir:
-//     router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
+//
+//	router.ServeFiles("/src/*filepath", http.Dir("/var/www"))
 func (r *Router) ServeFiles(path string, root http.FileSystem) {
 	if len(path) < 10 || path[len(path)-10:] != "/*filepath" {
 		panic("path must end with /*filepath in path '" + path + "'")
