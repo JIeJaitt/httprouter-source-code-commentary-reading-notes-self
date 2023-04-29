@@ -180,18 +180,25 @@ func (ps Params) MatchedRoutePath() string {
 	return ps.ByName(MatchedRoutePathParam)
 }
 
-// Router is a http.Handler which can be used to dispatch requests to different
-// handler functions via configurable routes
+// Router 是一个 HTTP 请求路由器，实现了 http.Handler 接口
+// 通过可配置的路由，可以将请求分发给不同的处理函数
 type Router struct {
+	// 存储所有路由树的 map
+	// key 是请求方法，value 是路由树
+	// 每棵路由树都是一个前缀树，对应一个 HTTP方法，其中包含了该方法下所有的路由信息
 	trees map[string]*node
 
+	// 一个同步池，用于减少参数解析器的分配和垃圾回收的负担
 	paramsPool sync.Pool
-	maxParams  uint16
+	// 路由路径中参数的最大数量，默认为 65535
+	// 超过这个数量的参数将导致路由器返回错误响应
+	maxParams uint16
 
 	// If enabled, adds the matched route path onto the http.Request context
 	// before invoking the handler.
 	// The matched route path is only added to handlers of routes that were
 	// registered when this option was enabled.
+	// 如果启用，则将匹配的路由路径添加到请求上下文中
 	SaveMatchedRoutePath bool
 
 	// Enables automatic redirection if the current route can't be matched but a
@@ -199,6 +206,7 @@ type Router struct {
 	// For example if /foo/ is requested but a route only exists for /foo, the
 	// client is redirected to /foo with http status code 301 for GET requests
 	// and 308 for all other request methods.
+	// 如果启用，将自动重定向到没有尾部斜杠的路由路径
 	RedirectTrailingSlash bool
 
 	// If enabled, the router tries to fix the current request path, if no
@@ -210,6 +218,7 @@ type Router struct {
 	// all other request methods.
 	// For example /FOO and /..//Foo could be redirected to /foo.
 	// RedirectTrailingSlash is independent of this option.
+	// 如果启用，则会自动修复请求的路径，并将请求重定向到修复后的路径。
 	RedirectFixedPath bool
 
 	// If enabled, the router checks if another method is allowed for the
@@ -218,23 +227,29 @@ type Router struct {
 	// and HTTP status code 405.
 	// If no other Method is allowed, the request is delegated to the NotFound
 	// handler.
+	// 如果启用，则当找不到与请求方法匹配的路由时，检查是否允许其他请求方法，如果允许则返回 HTTP 状态码 405，否则将请求委派给 NotFound 处理程序。
 	HandleMethodNotAllowed bool
 
 	// If enabled, the router automatically replies to OPTIONS requests.
 	// Custom OPTIONS handlers take priority over automatic replies.
+	// 如果启用，将自动回复 OPTIONS 请求。自定义 OPTIONS 处理程序优先于自动回复。
 	HandleOPTIONS bool
 
 	// An optional http.Handler that is called on automatic OPTIONS requests.
 	// The handler is only called if HandleOPTIONS is true and no OPTIONS
 	// handler for the specific path was set.
 	// The "Allowed" header is set before calling the handler.
+	// 一个可选的 http.Handler，在自动 OPTIONS 请求时调用
+	// 只有在 HandleOPTIONS 为 true 且未设置特定路径的 OPTIONS 处理程序时才调用该处理程序。
 	GlobalOPTIONS http.Handler
 
 	// Cached value of global (*) allowed methods
+	// 全局 (*) 允许的方法的缓存值。
 	globalAllowed string
 
 	// Configurable http.Handler which is called when no matching route is
 	// found. If it is not set, http.NotFound is used.
+	// 当找不到与请求路径匹配的路由时调用的处理程序。
 	NotFound http.Handler
 
 	// Configurable http.Handler which is called when a request
@@ -242,6 +257,7 @@ type Router struct {
 	// If it is not set, http.Error with http.StatusMethodNotAllowed is used.
 	// The "Allow" header with allowed request methods is set before the handler
 	// is called.
+	// 当找不到与请求方法匹配的路由时调用的处理程序。如果未设置，则使用 http.Error 和 http.StatusMethodNotAllowed。
 	MethodNotAllowed http.Handler
 
 	// Function to handle panics recovered from http handlers.
@@ -249,14 +265,20 @@ type Router struct {
 	// 500 (Internal Server Error).
 	// The handler can be used to keep your server from crashing because of
 	// unrecovered panics.
+	// 用于处理从 HTTP 处理程序中恢复的 panic
+	// 该函数可用于生成错误页面并返回 HTTP 错误码 500（内部服务器错误）
+	// 如果未设置，请求会被委派给 Go 的默认 panic 处理程序，可能会导致服务器崩溃
 	PanicHandler func(http.ResponseWriter, *http.Request, interface{})
 }
 
-// Make sure the Router conforms with the http.Handler interface
+// 这段代码的作用是确保 Router 类型符合 http.Handler 接口的要求。
+// 在 Go 语言中，可以通过在类型声明前加上 _ 和接口类型来实现接口类型的隐式实现
+// 这里使用了该方法来确保 Router 类型符合 http.Handler 接口。
 var _ http.Handler = New()
 
 // New returns a new initialized Router.
 // Path auto-correction, including trailing slashes, is enabled by default.
+// 这段代码定义了一个名为New()的函数，它返回一个已经初始化的Router对象。
 func New() *Router {
 	return &Router{
 		RedirectTrailingSlash:  true,
@@ -266,34 +288,57 @@ func New() *Router {
 	}
 }
 
+// 这段代码定义了一个 getParams 的方法，返回一个指向 Params 结构体的指针
+// 保存了路由匹配到的参数
+// 这个方法的目的是重用 Params 结构体，减少内存分配和垃圾回收的压力，提高程序性能。
 func (r *Router) getParams() *Params {
+	// 使用 sync.Pool 获取一个 Params 结构体
 	ps, _ := r.paramsPool.Get().(*Params)
+	// 然后将其内容清空
 	*ps = (*ps)[0:0] // reset slice
+	// 返回这个 Params 结构体
 	return ps
 }
 
+// 该代码块为 Router 结构体中的 putParams 方法，用于回收 Params 对象。
+// 该方法接受一个指向 Params 对象的指针 ps 作为参数。
+// 对象池可以帮助减少内存分配和垃圾回收的开销，提高程序的性能和稳定性。
 func (r *Router) putParams(ps *Params) {
 	if ps != nil {
+		// 如果 ps 不为空，则将其放回对象池中，否则不进行任何操作。
 		r.paramsPool.Put(ps)
 	}
 }
 
+// 这个代码块定义了一个名为saveMatchedRoutePath的方法，它的作用是将当前匹配到的路由路径保存到请求的上下文中，并调用原始的路由处理函数。
+// 具体地说，这个方法接受一个字符串path表示路由的路径和一个函数句柄handle表示路由的处理函数。
+// 在路由请求被处理之前，这个方法会先检查是否开启了SaveMatchedRoutePath选项，
+// 如果开启了，那么就会将匹配到的路由路径保存到请求的上下文中。
 func (r *Router) saveMatchedRoutePath(path string, handle Handle) Handle {
 	return func(w http.ResponseWriter, req *http.Request, ps Params) {
 		if ps == nil {
+			// 从参数池中获取一个Params切片
 			psp := r.getParams()
+			// 将匹配到的路由路径作为第一个参数插入到Params中
 			ps = (*psp)[0:1]
+			// 并调用原始的路由处理函数。
 			ps[0] = Param{Key: MatchedRoutePathParam, Value: path}
 			handle(w, req, ps)
+			// 将Params切片放回参数池中以便重用
 			r.putParams(psp)
 		} else {
+			// 如果Params不为空，则只需要将匹配到的路由路径作为新的参数添加到Params切片中，然后再调用原始的路由处理函数即可。
 			ps = append(ps, Param{Key: MatchedRoutePathParam, Value: path})
 			handle(w, req, ps)
 		}
 	}
 }
 
-// GET is a shortcut for router.Handle(http.MethodGet, path, handle)
+// GET 这段代码定义了 GET 方法，它是一个 Router 类型的方法。
+// 它是通过 Handle 方法来实现的，GET 方法实际上是调用了 Handle 方法
+// 并将 http.MethodGet 作为参数传递进去，从而让 Router 类型的实例可以处理 GET 请求。
+// 因此，使用 GET 方法可以简单地为 Router 实例注册一个 http.MethodGet 方法处理器，
+// 即注册一个用于处理 HTTP GET 请求的处理器函数，使其可以处理匹配到的请求路径。
 func (r *Router) GET(path string, handle Handle) {
 	r.Handle(http.MethodGet, path, handle)
 }
