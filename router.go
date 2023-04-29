@@ -130,7 +130,7 @@ type Param struct {
 type Params []Param
 
 // ByName 这是一个名为 ByName 的方法, 它是在 Params 类型上定义的.
-// 它接受一个字符串类型的参数 name，代表要查找的 Params 中的 Param 的键.
+// 它接受一个字符串类型的参数 name, 代表要查找的 Params 中的 Param 的键.
 // 方法首先迭代 Params 切片中的每个元素（即每个 Param）, 并检查它们的键是否与提供的 name 相匹配.
 // 如果找到匹配的 Param，则返回它的值, 否则，方法返回一个空字符串.
 // 这个方法可以用来从路由的 Params 中检索特定的值.
@@ -143,25 +143,39 @@ func (ps Params) ByName(name string) string {
 	return ""
 }
 
+// 这段代码定义了一个 paramsKey 结构体类型, 用来作为上下文中 URL 参数存储的键值
 type paramsKey struct{}
 
-// ParamsKey is the request context key under which URL params are stored.
+// ParamsKey 这段代码声明了一个 ParamsKey 变量，其类型为 paramsKey, 它是一个结构体类型.
+// 并用其初始化一个新的 paramsKey 实例, 用来作为上下文中 URL 参数存储的键值.
+// 这样就得到了一个独一无二的键值, 可以用来存储和访问请求上下文中的 URL 参数.
+// 这种方式可以保证不同的上下文使用不同的键，避免了键名冲突的问题。
+// 在处理请求时，可以使用 ParamsKey 变量来获取请求上下文中的 URL 参数。
 var ParamsKey = paramsKey{}
 
-// ParamsFromContext pulls the URL parameters from a request context,
-// or returns nil if none are present.
+// ParamsFromContext 该函数的目的是在请求处理函数中方便地获取请求的URL参数，从而进行更复杂的请求处理。
+// 这段代码定义了一个名为ParamsFromContext的函数，用于从请求的上下文中提取URL参数。
+// 函数的参数是context.Context类型，函数返回值是Params类型。
 func ParamsFromContext(ctx context.Context) Params {
+	// 使用Value方法从请求上下文中获取ParamsKey对应的值，即请求的URL参数。
+	// 如果值存在并且类型是Params，则将其转换为Params类型并返回。
+	// 如果不存在或者类型不匹配，则返回空的Params值。
 	p, _ := ctx.Value(ParamsKey).(Params)
 	return p
 }
 
-// MatchedRoutePathParam is the Param name under which the path of the matched
-// route is stored, if Router.SaveMatchedRoutePath is set.
+// MatchedRoutePathParam 这段代码定义了一个名为 MatchedRoutePathParam 的变量，用于存储匹配到的路由的路径参数。
+// 如果 Router.SaveMatchedRoutePath 设置为 true，则该参数名和对应的路径将被存储在请求上下文中，并可以通过该参数名从请求上下文中获取路径参数值。
+// 通常情况下，该参数被用于记录当前匹配到的路由的路径，以便在处理请求时进行参考或记录。
 var MatchedRoutePathParam = "$matchedRoutePath"
 
 // MatchedRoutePath retrieves the path of the matched route.
-// Router.SaveMatchedRoutePath must have been enabled when the respective
-// handler was added, otherwise this function always returns an empty string.
+// Router.SaveMatchedRoutePath must have been enabled when the respective handler was added
+// MatchedRoutePath 方法用于获取匹配到的路由的路径。
+// 如果在添加路由处理函数时启用了 Router.SaveMatchedRoutePath，它返回匹配到的路由的路径，否则返回一个空字符串。
+// 在该方法中，首先调用 ByName 方法获取名为 $matchedRoutePath 的 Param 对象的值
+// 因为在添加处理函数时，如果启用了 Router.SaveMatchedRoutePath，那么就会把匹配到的路由路径值作为 $matchedRoutePath 的值保存到 Params 中
+// 所以，调用 ByName 方法可以返回这个值，即为匹配到的路由的路径。
 func (ps Params) MatchedRoutePath() string {
 	return ps.ByName(MatchedRoutePathParam)
 }
