@@ -3,6 +3,12 @@
 
 这个仓库的目的是与其他对httprouter项目感兴趣的人分享我的学习笔记和注释。希望这个仓库能够对你有所帮助，也欢迎你参与到这个项目中来，共同学习和贡献。
 
+## 预习
+在阅读这个仓库之前，你需要对Go语言和HTTP协议有一定的了解。如果你对Go语言还不熟悉，可以先阅读[Go语言圣经](https://books.studygolang.com/gopl-zh/)。如果你对HTTP协议还不熟悉，可以先阅读[HTTP权威指南](https://book.douban.com/subject/10746113/)。
+
+URL中的通配符是什么？长什么样：在URL中，通配符是一种特殊的标记，用于匹配多个可能的URL路径。在Go的net/http包中，路由器使用通配符来匹配变量部分，这些变量部分可以是任何值。常见的通配符有两种：单个匹配字符（例如"/user/:id"）和匹配全部字符（例如"/assets/*filepath"）。
+在这些例子中，":id" 和 "*filepath" 都是通配符。":id" 匹配一个字符片段，而 "*filepath" 则匹配零个或多个字符片段，直到到达URL路径的结尾。
+
 # HttpRouter [![Build Status](https://travis-ci.org/julienschmidt/httprouter.svg?branch=master)](https://travis-ci.org/julienschmidt/httprouter) [![Coverage Status](https://coveralls.io/repos/github/julienschmidt/httprouter/badge.svg?branch=master)](https://coveralls.io/github/julienschmidt/httprouter?branch=master) [![Docs](https://godoc.org/github.com/julienschmidt/httprouter?status.svg)](http://pkg.go.dev/github.com/julienschmidt/httprouter)
 
 HttpRouter is a lightweight high performance HTTP request router (also called *multiplexer* or just *mux* for short) for [Go](https://golang.org/).
